@@ -1,3 +1,4 @@
+import requests
 import sbi
 import tweepy, time, sys
 import simplejson
@@ -42,16 +43,37 @@ for media in mostRecent.entities.get("media",[{}]):
 result = sbi.search_by(url=imgUrl)
 
 
+
 fetcher = urllib2.build_opener()
 # Remove spaces in phrase generated from image
 searchTerm = result.best_guess.replace(" ", "")
 startIndex = 0
-# Search for phrase in Google Images
-searchUrl = "http://ajax.googleapis.com/ajax/services/search/images?v=1.0&q=" + searchTerm + "&start=" + str(startIndex)
-f = fetcher.open(searchUrl)
-deserialized_output = simplejson.load(f)
 
-imageUrl = deserialized_output['responseData']['results'][0]['unescapedUrl']
+# Download image using Bing Search
+bing_url = 'https://api.datamarket.azure.com/Bing/Search/Image'
+bing_api_key = 'b+otGGjd4HkdQTANFMjLpgaOEmTGDtR38z5JBlCwGPw'
+bing_auth = requests.auth.HTTPBasicAuth(bing_api_key, bing_api_key)
+bing_page_count = 1
+bing_headers = {'User-Agent':'Mozilla/4.0 (compatible; MSIE 7.0; Windows NT 5.1; Trident/4.0; FDM; .NET CLR 2.0.50727; InfoPath.2; .NET CLR 1.1.4322)'}
+
+def getFirstImg(subject):
+
+    payload = {
+        'Query':('\'' + subject + '\''),
+        '$format': 'json',
+        '$top':bing_page_count,
+    }
+
+    search_response = requests.get(bing_url, auth=bing_auth, params=payload, headers=bing_headers)
+
+    try:
+        search_response_json = search_response.json()
+        return search_response_json['d']['results'][0]['MediaUrl']
+    except:
+        print('Search error: ' + search_response.text)
+        return None
+
+imageUrl = getFirstImg(searchTerm)
 # Image previously Tweeted by bot
 file = cStringIO.StringIO(urllib2.urlopen(imageUrl).read())
 img = Image.open(file)
@@ -68,7 +90,8 @@ background = img.convert("RGB")
 sameSize = sameSize.convert("RGB")
 
 new_img = Image.blend(background, sameSize, 0.5)
-new_img.save("new.jpg")
+img_loc = "/home/nbond/Python/TwitterBots/new.jpg"
+new_img.save(img_loc)
 
 # Update status with merged image
-api.update_with_media("new.jpg", prevWord + " " + result.best_guess)
+api.update_with_media(img_loc, prevWord + " " + result.best_guess)
